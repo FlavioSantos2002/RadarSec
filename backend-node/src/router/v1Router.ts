@@ -1,10 +1,10 @@
 import { Router } from "express";
 import authRouter from "../resources/auth/auth.router";
-import sessionRouter from "../resources/session/session.router";
+import incidentRouter from "../resources/incident/incident.router";
 
 const v1Router = Router();
 
 v1Router.use("/auth", authRouter);
-v1Router.use("/sessions", sessionRouter);
+v1Router.use("/incidents", incidentRouter);
 
 export default v1Router;

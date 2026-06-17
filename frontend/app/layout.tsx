@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PlotTwister - Cinema Interativo",
-  description: "Assista, vote e decida o rumo da história em tempo real",
+  title: "CiberThreats - Painel de Controle",
+  description: "Aplicação para registro e classificação automática de incidentes de segurança cibernética",
 };
 
 export default function RootLayout({

@@ -27,10 +27,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       process.env.JWT_SECRET!,
       { expiresIn: "24h" }
     );
-    res.status(200).json({
-      token,
-      user: { id: user.id, fullname: user.fullname, role: user.role },
-    });
+    res.status(200).json({ token });
   } catch (error: any) {
     if (error.message === "INVALID_CREDENTIALS") {
       res.status(401).json({ msg: "Credenciais inválidas" });

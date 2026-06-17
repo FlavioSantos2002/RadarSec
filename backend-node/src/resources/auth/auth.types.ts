@@ -1,4 +1,4 @@
-export type UserRole = "viewer" | "moderator" | "director";
+export type UserRole = "user" | "admin";
 
 export interface SignupDto {
   email: string;

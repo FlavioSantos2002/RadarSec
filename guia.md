@@ -1,260 +1,262 @@
-# Guia de Execução e Testes — PlotTwister
+# Documentação de Execução e Testes - Classificador de Incidentes
 
-Este documento detalha os passos para inicializar a infraestrutura do projeto e realizar os testes das rotas de autenticação, controle de acesso e cinema interativo.
+Este documento detalha os passos exatos para inicializar a infraestrutura do projeto (Banco de Dados, Inteligência Artificial e Backend Node.js) e realizar os testes de integração das rotas de autenticação e incidentes.
 
 ## Parte 1: Inicializando a Infraestrutura (Docker)
 
-Toda a aplicação está containerizada. Você só precisa ter o Docker instalado.
+Toda a aplicação está containerizada. Não é necessário ter Node.js, Python ou MySQL instalados localmente na sua máquina, apenas o Docker.
 
-**1. Subir todos os serviços em segundo plano:**
+> **Pré-requisito:** Cada serviço (`backend-ia`, `backend-node`, `frontend`) deve conter um arquivo `Dockerfile` na sua respectiva pasta. Esses arquivos já estão incluídos no projeto. Sem eles, o `docker-compose up --build` falhará com o erro `failed to read dockerfile`.
 
-```bash
-docker-compose up -d
+**1. Subir os serviços em segundo plano (Detached mode):** Abra o terminal na raiz do projeto e execute:
+
+Bash
+
+```
+docker-compose up db backend-ia backend-node -d --build
+
 ```
 
-**2. Verificar se os containers estão rodando:**
+> Use a flag `--build` na **primeira execução** ou sempre que alterar o código-fonte, para garantir que as imagens Docker sejam (re)construídas.
 
-```bash
+_(Nota: O serviço `frontend` foi omitido neste comando focado na validação exclusiva da API)._
+
+**2. Verificar se os serviços estão rodando:**
+
+Bash
+
+```
 docker ps
+
 ```
 
-_Resultado esperado:_ 3 containers com status `Up`:
-- `plottwister-db` — MySQL na porta 3306
-- `plottwister-node` — API Node.js na porta 3333
-- `plottwister-web` — Frontend Next.js na porta 3001
+_Resultado Esperado:_ Você deve ver 3 containers na lista com o status `Up` (MySQL na porta 3306, IA na 8000 e Node na 3333).
 
-**3. Aplicar as migrations (apenas na primeira vez):**
+**3. Sincronizar o Banco de Dados (Rodar Migrations):** Na primeira vez que rodar o projeto, é necessário criar as tabelas no banco de dados vazio:
 
-```bash
-docker-compose exec backend-node npx prisma migrate deploy
+Bash
+
+```
+docker-compose exec backend-node npx prisma migrate dev --name init
+
 ```
 
-**4. Abrir o Prisma Studio (opcional — visualização do banco):**
+> **Se já tinha o banco rodando antes da migração JWT:** execute o comando abaixo para adicionar a coluna `role` ao banco existente:
+>
+> ```
+> docker-compose exec backend-node npx prisma migrate dev --name add_role_to_user
+> ```
 
-```bash
+**4. Acessar o Banco de Dados Visualmente (Opcional):** Para abrir o painel do Prisma Studio e ver as tabelas no seu navegador:
+
+Bash
+
+```
 docker-compose exec backend-node npx prisma studio --port 5555 --hostname 0.0.0.0
+
 ```
 
-Acesse `http://localhost:5555` no navegador.
+_Acesso:_ Abra `http://localhost:5555` no seu navegador.
 
----
+----------
 
-## Parte 2: Guia de Testes da API (Postman / Insomnia)
+##  Parte 2: Guia de Testes da API (Postman)
 
-Execute os testes **nesta ordem**. Após o login, copie o `token` retornado e use-o no header `Authorization: Bearer <token>` em todas as requisições protegidas.
+Com a infraestrutura rodando, utilize o Postman ou Insomnia para validar o fluxo de ponta a ponta.
 
----
+⚠️ **Aviso:** Os testes devem ser feitos **exatamente nesta ordem**. A autenticação utiliza **JWT (JSON Web Token)**. Após o login, copie o token retornado e use-o no header `Authorization: Bearer <token>` em todas as requisições protegidas.
 
 ### Teste 1: Cadastro de Usuário (Signup)
 
-Valida a criação de conta, a política de senha forte e o hash bcrypt.
+Valida a criação do usuário, a restrição de senha forte e o _hash_ de segurança.
 
-- **Método:** `POST`
-- **URL:** `http://localhost:3333/v1/auth/signup`
-- **Headers:** `Content-Type: application/json`
-- **Body:**
+-   **Método:** `POST`
+    
+-   **URL:** `http://localhost:3333/v1/auth/signup`
+    
+-   **Headers:** `Content-Type: application/json`
+    
+-   **Body (JSON):**
+    
 
-```json
+JSON
+
+```
 {
-  "email": "espectador@plottwister.com",
-  "fullname": "Maria Silva",
+  "email": "analista@soc.com",
+  "fullname": "Analista de Segurança",
   "password": "SenhaForte!2026"
 }
+
 ```
 
-**✅ Status `201 Created` — Body:**
+**✅ Resultado Esperado:** * **Status:** `201 Created`
 
-```json
+-   **Body:** Retorna os dados do usuário recém-criado (sem exibir a senha):
+    
+
+JSON
+
+```
 {
-  "id": "uuid-gerado",
-  "email": "espectador@plottwister.com",
-  "fullname": "Maria Silva",
-  "role": "viewer",
-  "createdAt": "2026-05-31T..."
+  "id": "uuid-gerado-pelo-banco",
+  "email": "analista@soc.com",
+  "fullname": "Analista de Segurança",
+  "createdAt": "2026-04-08T...",
+  "updatedAt": "2026-04-08T..."
 }
+
 ```
 
----
+----------
 
-### Teste 2: Login
+### Teste 2: Autenticação (Login)
 
-Valida as credenciais e retorna um JWT assinado junto com os dados do usuário.
+Valida as credenciais e retorna um JWT assinado.
 
-- **Método:** `POST`
-- **URL:** `http://localhost:3333/v1/auth/login`
-- **Headers:** `Content-Type: application/json`
-- **Body:**
+-   **Método:** `POST`
+    
+-   **URL:** `http://localhost:3333/v1/auth/login`
+    
+-   **Headers:** `Content-Type: application/json`
+    
+-   **Body (JSON):**
+    
 
-```json
+JSON
+
+```
 {
-  "email": "espectador@plottwister.com",
+  "email": "analista@soc.com",
   "password": "SenhaForte!2026"
 }
+
 ```
 
-**✅ Status `200 OK` — Body:**
+**✅ Resultado Esperado:** * **Status:** `200 OK`
 
-```json
+-   **Body:**
+
+JSON
+
+```
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": "uuid-do-usuario",
-    "fullname": "Maria Silva",
-    "role": "viewer"
-  }
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
-> **Importante:** Copie o `token`. Nas próximas requisições use o header:
-> ```
-> Authorization: Bearer <token_copiado>
-> ```
+-   **Importante:** Copie o valor de `token`. Nas próximas requisições, adicione o header:
+    ```
+    Authorization: Bearer <token_copiado>
+    ```
+    
 
----
+----------
 
-### Teste 3: Acesso sem Token (Rota Protegida)
+### Teste 3: Integração Backend + Inteligência Artificial
 
-Valida que rotas privadas rejeitam requisições não autenticadas.
+Valida a rota protegida, a comunicação do Node.js com o container Python e a persistência final com a categoria detectada.
 
-- **Método:** `GET`
-- **URL:** `http://localhost:3333/v1/sessions`
-- **Headers:** _(nenhum Authorization)_
+-   **Método:** `POST`
+    
+-   **URL:** `http://localhost:3333/v1/incidents`
+    
+-   **Headers:**
+    ```
+    Content-Type: application/json
+    Authorization: Bearer <token_do_login>
+    ```
+    
+-   **Body (JSON):**
+    
 
-**❌ Status `401 Unauthorized` — Body:**
+JSON
 
-```json
-{ "msg": "Usuário não autenticado" }
 ```
-
----
-
-### Teste 4: Listar Sessões (Espectador autenticado)
-
-- **Método:** `GET`
-- **URL:** `http://localhost:3333/v1/sessions`
-- **Headers:** `Authorization: Bearer <token_viewer>`
-
-**✅ Status `200 OK` — Body:** array de sessões (vazio se nenhuma foi criada ainda).
-
----
-
-### Teste 5: Promoção para Diretor (via SQL)
-
-Diretores podem criar e gerenciar sessões. Para promover um usuário:
-
-```bash
-docker-compose exec db mysql -uroot -proot plottwister_db -e "UPDATE User SET role = 'director' WHERE email = 'espectador@plottwister.com';"
-```
-
-Faça login novamente para obter um novo token com `"role": "director"` no payload.
-
----
-
-### Teste 6: Criar Sessão (somente Diretor)
-
-- **Método:** `POST`
-- **URL:** `http://localhost:3333/v1/sessions`
-- **Headers:**
-  ```
-  Content-Type: application/json
-  Authorization: Bearer <token_director>
-  ```
-- **Body:**
-
-```json
 {
-  "title": "O Labirinto Sem Saída",
-  "description": "Uma história de suspense onde o público decide o destino do protagonista."
+  "title": "Aviso falso de bloqueio de conta institucional",
+  "description": "Mensagens afirmavam que a conta seria bloqueada caso o usuário não acessasse um portal informado no e-mail."
+}
+
+```
+
+**✅ Resultado Esperado:** * **Status:** `201 Created`
+
+-   **Body:** Retorna o incidente completo salvo no banco, evidenciando o campo **`category`** preenchido pela IA:
+    
+
+JSON
+
+```
+{
+  "id": "uuid-do-incidente",
+  "userId": "uuid-do-analista-logado",
+  "title": "Aviso falso de bloqueio de conta institucional",
+  "description": "Mensagens afirmavam que a conta seria bloqueada caso o usuário não acessasse um portal informado no e-mail.",
+  "category": "phishing",
+  "createdAt": "2026-04-08T...",
+  "updatedAt": "2026-04-08T..."
 }
 ```
 
-**✅ Status `201 Created`** — retorna o objeto da sessão com `status: "waiting"`.
+----------
 
-**❌ Com token de `viewer` — Status `403 Forbidden`:**
+### Teste 4: Promoção de Usuário a Admin (via SQL)
 
-```json
-{ "msg": "Acesso negado: requer permissão de diretor" }
+Para conceder o papel de administrador a um usuário, execute diretamente no banco:
+
+Bash
+
+```
+docker-compose exec db mysql -uroot -proot incident_db -e "UPDATE User SET role = 'admin' WHERE email = 'analista@soc.com';"
+
 ```
 
----
+Faça login novamente com esse usuário para obter um novo token JWT que já contém `"role": "admin"` no payload.
 
-### Teste 7: Adicionar Cena a uma Sessão
+----------
 
-- **Método:** `POST`
-- **URL:** `http://localhost:3333/v1/sessions/<id_da_sessao>/scenes`
-- **Headers:** `Authorization: Bearer <token_director>`
-- **Body:**
+### Teste 5: Rota Exclusiva de Administrador
 
-```json
+Valida o controle de acesso por papel. Retorna todos os incidentes de todos os usuários.
+
+-   **Método:** `GET`
+    
+-   **URL:** `http://localhost:3333/v1/incidents/admin/all`
+    
+-   **Headers:**
+    ```
+    Authorization: Bearer <token_de_admin>
+    ```
+
+**✅ Resultado Esperado (token de admin):** Status `200 OK` com lista completa de incidentes incluindo dados do usuário dono.
+
+**❌ Resultado Esperado (token de user comum):** Status `403 Forbidden`:
+
+JSON
+
+```
 {
-  "title": "A Encruzilhada",
-  "content": "O protagonista chega a uma bifurcação. À esquerda, uma floresta escura. À direita, luzes ao longe. O que ele faz?",
-  "choices": [
-    "Entrar na floresta",
-    "Seguir em direção às luzes"
-  ]
+  "msg": "Acesso negado: requer permissão de administrador"
 }
 ```
 
-**✅ Status `201 Created`** — retorna a cena com as opções criadas.
+----------
 
----
+### Teste 6: Acesso sem Token (Rota Protegida)
 
-### Teste 8: Iniciar Sessão e Ativar Cena
+Valida que rotas privadas rejeitam requisições sem autenticação.
 
-**Iniciar a sessão** (muda status de `waiting` para `active`):
+-   **Método:** `GET`
+-   **URL:** `http://localhost:3333/v1/incidents`
+-   **Headers:** _(nenhum Authorization)_
 
-- **Método:** `PATCH`
-- **URL:** `http://localhost:3333/v1/sessions/<id_da_sessao>/status`
-- **Body:** `{ "status": "active" }`
+**❌ Resultado Esperado:** Status `401 Unauthorized`:
 
-**Ativar uma cena para votação** (moderador ou diretor):
+JSON
 
-- **Método:** `PATCH`
-- **URL:** `http://localhost:3333/v1/sessions/<id_da_sessao>/scenes/<id_da_cena>/activate`
-- **Headers:** `Authorization: Bearer <token_director>`
-
-**✅ Status `200 OK`** — a cena fica com `isActive: true`. As outras cenas da sessão são automaticamente desativadas.
-
----
-
-### Teste 9: Votar em uma Cena (Espectador)
-
-- **Método:** `POST`
-- **URL:** `http://localhost:3333/v1/sessions/vote`
-- **Headers:** `Authorization: Bearer <token_viewer>`
-- **Body:**
-
-```json
+```
 {
-  "sceneId": "<id_da_cena_ativa>",
-  "choiceId": "<id_da_opcao_escolhida>"
+  "msg": "Usuário não autenticado"
 }
 ```
-
-**✅ Status `201 Created`** — voto registrado.
-
-**❌ Segundo voto na mesma cena — Status `409 Conflict`:**
-
-```json
-{ "msg": "Você já votou nesta cena" }
-```
-
-**❌ Cena inativa — Status `400 Bad Request`:**
-
-```json
-{ "msg": "Cena não está ativa para votação" }
-```
-
----
-
-### Teste 10: Promoção para Moderador
-
-Moderadores podem ativar cenas mas não criar sessões:
-
-```bash
-docker-compose exec db mysql -uroot -proot plottwister_db -e "UPDATE User SET role = 'moderator' WHERE email = 'espectador@plottwister.com';"
-```
-
-- Tentar criar sessão com token de `moderator` → **`403 Forbidden`**
-- Ativar cena com token de `moderator` → **`200 OK`**
