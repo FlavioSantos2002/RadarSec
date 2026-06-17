@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique @db.VarChar(100)
+  fullname  String    @db.VarChar(100)
+  password  String    @db.Char(60)
+  role      String    @default("viewer") @db.VarChar(20)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  sessions  Session[]
+  votes     Vote[]
+}
+
+// Sessão = sala de cinema interativo
+model Session {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(100)
+  description String   @db.Text
+  status      String   @default("waiting") @db.VarChar(20) // waiting | active | finished
+  directorId  String
+  director    User     @relation(fields: [directorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  scenes      Scene[]
+}
+
+// Cena = momento do filme com ponto de decisão
+model Scene {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  title     String   @db.VarChar(100)
+  content   String   @db.Text
+  order     Int
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  choices   Choice[]
+  votes     Vote[]
+}
+
+// Opção de escolha votável
+model Choice {
+  id        String   @id @default(uuid())
+  sceneId   String
+  scene     Scene    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  text      String   @db.VarChar(200)
+  createdAt DateTime @default(now())
+
+  votes     Vote[]
+}
+
+// Voto do espectador (um por cena por usuário)
+model Vote {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sceneId   String
+  scene     Scene    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  choiceId  String
+  choice    Choice   @relation(fields: [choiceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, sceneId])
+}
