@@ -1,100 +1,100 @@
 import { PrismaClient } from "@prisma/client";
-import axios from "axios";
 
 const prisma = new PrismaClient();
 
-// URL do container de IA
-const AI_API_URL = process.env.AI_API_URL || "http://backend-ia:8000";
+const INCIDENT_INCLUDE = {
+    user: { select: { id: true, email: true, fullname: true } },
+    responsible: { select: { id: true, email: true, fullname: true } },
+    project: { select: { id: true, name: true } },
+    _count: { select: { evidences: true } },
+} as const;
 
 export const getAllIncidentsAdmin = async () => {
     return await prisma.incident.findMany({
         orderBy: { createdAt: "desc" },
-        include: { user: { select: { id: true, email: true, fullname: true, role: true } } },
+        include: INCIDENT_INCLUDE,
     });
 };
 
-export const getAllIncidents = async (userId: string) => {
+export const getIncidentsByProject = async (projectId: string) => {
     return await prisma.incident.findMany({
-        where: { userId },
+        where: { projectId },
         orderBy: { createdAt: "desc" },
+        include: INCIDENT_INCLUDE,
     });
 };
 
-export const createIncident = async (userId: string, data: { title: string; description: string }) => {
-    let category = "processando";
-
-    try {
-        // CORREÇÃO: Enviando objeto completo { title, description } para evitar erro 422
-        const aiResponse = await axios.post(`${AI_API_URL}/classificar`, {
-            title: data.title,
-            description: data.description
-        });
-        
-        // CORREÇÃO: Acessando a chave "categoria" que vem do seu app.py
-        category = aiResponse.data.categoria;
-    } catch (error) {
-        console.error("Erro na classificação inicial (IA):", error);
+export const createIncident = async (
+    userId: string,
+    data: {
+        projectId: string;
+        title: string;
+        description: string;
+        category: string;
+        severity?: string;
+        status?: string;
+        responsibleId?: string | null;
     }
-
+) => {
     return await prisma.incident.create({
         data: {
+            projectId: data.projectId,
             title: data.title,
             description: data.description,
-            category: category,
-            userId
-        }
+            category: data.category,
+            severity: data.severity || "baixa",
+            status: data.status || "aberto",
+            responsibleId: data.responsibleId || null,
+            userId,
+        },
+        include: INCIDENT_INCLUDE,
     });
 };
 
-export const getIncidentById = async (userId: string, incidentId: string) => {
-    const incident = await prisma.incident.findFirst({
-        where: { id: incidentId, userId }
+export const getIncidentById = async (incidentId: string) => {
+    const incident = await prisma.incident.findUnique({
+        where: { id: incidentId },
+        include: INCIDENT_INCLUDE,
     });
-
     if (!incident) throw new Error("NOT_FOUND");
     return incident;
 };
 
-export const updateIncident = async (userId: string, incidentId: string, data: { title: string; description: string }) => {
-    const existing = await prisma.incident.findFirst({
-        where: { id: incidentId, userId }
-    });
-
-    if (!existing) throw new Error("NOT_FOUND");
-
-    let newCategory = existing.category;
-    
-    try {
-        // CORREÇÃO: Enviando title e description na atualização também
-        const aiResponse = await axios.post(`${AI_API_URL}/classificar`, {
-            title: data.title,
-            description: data.description
-        });
-        
-        // CORREÇÃO: Lendo a chave correta do Python
-        newCategory = aiResponse.data.categoria;
-    } catch (error) {
-        console.error("Falha na reclassificação (IA):", error);
+export const updateIncident = async (
+    userId: string,
+    userRole: string,
+    incidentId: string,
+    data: {
+        title?: string;
+        description?: string;
+        category?: string;
+        severity?: string;
+        status?: string;
+        responsibleId?: string | null;
     }
+) => {
+    const existing = await prisma.incident.findUnique({ where: { id: incidentId } });
+    if (!existing) throw new Error("NOT_FOUND");
+    if (existing.userId !== userId && userRole !== "admin") throw new Error("FORBIDDEN");
 
     return await prisma.incident.update({
         where: { id: incidentId },
         data: {
-            title: data.title,
-            description: data.description,
-            category: newCategory
-        }
+            ...(data.title && { title: data.title }),
+            ...(data.description && { description: data.description }),
+            ...(data.category && { category: data.category }),
+            ...(data.severity && { severity: data.severity }),
+            ...(data.status && { status: data.status }),
+            ...("responsibleId" in data && { responsibleId: data.responsibleId || null }),
+        },
+        include: INCIDENT_INCLUDE,
     });
 };
 
-export const deleteIncident = async (userId: string, incidentId: string) => {
-    const existing = await prisma.incident.findFirst({
-        where: { id: incidentId, userId }
-    });
-
+export const deleteIncident = async (userId: string, userRole: string, incidentId: string) => {
+    const existing = await prisma.incident.findUnique({ where: { id: incidentId } });
     if (!existing) throw new Error("NOT_FOUND");
+    if (existing.userId !== userId && userRole !== "admin") throw new Error("FORBIDDEN");
 
-    return await prisma.incident.delete({
-        where: { id: incidentId }
-    });
+    await prisma.incident.delete({ where: { id: incidentId } });
 };

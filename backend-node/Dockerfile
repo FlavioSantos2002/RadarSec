@@ -9,7 +9,9 @@ RUN npm install
 
 COPY . .
 
+RUN mkdir -p /app/uploads
+
 EXPOSE 3333
 EXPOSE 5555
 
-CMD ["npx", "ts-node-dev", "--respawn", "--transpile-only", "src/index.ts"]
+CMD ["sh", "start.sh"]

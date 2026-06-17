@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CiberThreats - Painel de Controle",
-  description: "Aplicação para registro e classificação automática de incidentes de segurança cibernética",
+  title: "RadarSec — Cybersecurity Operations",
+  description: "Plataforma de gestão de projetos e incidentes de cibersegurança para times SOC",
 };
 
 export default function RootLayout({
