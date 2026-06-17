@@ -27,10 +27,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       process.env.JWT_SECRET!,
       { expiresIn: "24h" }
     );
-    res.status(200).json({
-      token,
-      user: { id: user.id, fullname: user.fullname, role: user.role },
-    });
+    res.status(200).json({ token });
   } catch (error: any) {
     if (error.message === "INVALID_CREDENTIALS") {
       res.status(401).json({ msg: "Credenciais inválidas" });
@@ -42,4 +39,18 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 export const logout = (_req: Request, res: Response): void => {
   res.status(200).json({ msg: "Logout realizado com sucesso" });
+};
+
+export const listUsers = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    const users = await prisma.user.findMany({
+      select: { id: true, fullname: true, email: true, role: true },
+      orderBy: { fullname: "asc" },
+    });
+    res.status(200).json(users);
+  } catch {
+    res.status(500).json({ msg: "Erro ao listar usuários" });
+  }
 };

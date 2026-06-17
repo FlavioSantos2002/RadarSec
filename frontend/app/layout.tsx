@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PlotTwister - Cinema Interativo",
-  description: "Assista, vote e decida o rumo da história em tempo real",
+  title: "RadarSec — Cybersecurity Operations",
+  description: "Plataforma de gestão de projetos e incidentes de cibersegurança para times SOC",
 };
 
 export default function RootLayout({

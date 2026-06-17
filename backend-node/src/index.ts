@@ -9,16 +9,16 @@ dotenv.config();
 
 const app = express();
 
-// 1. LOG GLOBAL DE REQUISIÇÕES (Fundamental para sabermos se o sinal chega no Node)
+// 1. LOG GLOBAL DE REQUISIÇÕES
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-// 2. HELMET (Ajustado para não bloquear o Cross-Origin do seu Next.js)
+// 2. HELMET (Ajustado para não bloquear o Cross-Origin do Next.js)
 app.use(
   helmet({
-    contentSecurityPolicy: false, // Desativamos temporariamente para evitar o erro 500 silencioso
+    contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" },
     hidePoweredBy: true,
   })
@@ -34,13 +34,14 @@ app.use(
   })
 );
 
-// 4. PARSER (Deve vir antes das rotas e do rate limit)
-app.use(express.json());
+// 4. PARSER
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// 5. RATE LIMIT (Aumentado para evitar bloqueios em testes de desenvolvimento)
+// 5. RATE LIMIT (500 requisições para evitar bloqueios em testes)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 500, // Aumentado de 100 para 500
+  max: 500,
   message: { erro: "Limite excedido." },
 });
 app.use(globalLimiter);
@@ -48,14 +49,19 @@ app.use(globalLimiter);
 // 6. ROTAS
 app.use("/v1", router);
 
-// 8. TRATAMENTO DE ERROS GLOBAL (Isso vai forçar o erro 500 a aparecer no terminal)
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+// 7. TRATAMENTO DE ERROS GLOBAL
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error("ERRO CAPTURADO NO MIDDLEWARE:", err.stack);
+  if (err.message && err.message.includes("não permitido")) {
+    res.status(400).json({ msg: err.message });
+    return;
+  }
   res.status(500).json({ msg: "Erro interno no servidor", error: err.message });
 });
 
+// 8. INICIALIZAÇÃO DO SERVIDOR
 const PORT = process.env.PORT || 3333;
 
 app.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`CyberThreats API rodando na porta ${PORT}`);
+  console.log(`RadarSec API rodando na porta ${PORT}`);
 });
