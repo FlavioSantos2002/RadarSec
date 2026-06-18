@@ -1,0 +1,169 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  HUNTER
+  GESTOR
+}
+
+enum FindingStatus {
+  EM_ANALISE
+  VALIDADO
+  DESCARTADO
+  DUPLICADO
+  CORRIGIDO
+}
+
+enum Severity {
+  CRITICA
+  ALTA
+  MEDIA
+  BAIXA
+  INFORMATIVA
+}
+
+enum Priority {
+  CRITICA
+  ALTA
+  MEDIA
+  BAIXA
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(HUNTER)
+  createdAt    DateTime @default(now())
+
+  projectMemberships ProjectMember[]
+  findings           Finding[]         @relation("AssignedTo")
+  authoredFindings   Finding[]         @relation("AuthoredBy")
+  reviews            PeerReview[]
+  timelineMessages   TimelineMessage[]
+  auditLogs          AuditLog[]
+  attachments        FindingAttachment[]
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  scope       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  ProjectMember[]
+  findings Finding[]
+}
+
+model ProjectMember {
+  id        String  @id @default(uuid())
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String
+
+  @@unique([projectId, userId])
+}
+
+model Finding {
+  id            String        @id @default(uuid())
+  title         String
+  description   String
+  attackVector  String
+  payload       String?
+  poc           String?
+  severity      Severity
+  cvssScore     Float?
+  cvssVector    String?
+  status        FindingStatus @default(EM_ANALISE)
+  priority      Priority?
+  evidences     String?
+  isDuplicate   Boolean       @default(false)
+  duplicateOf   String?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  author   User   @relation("AuthoredBy", fields: [authorId], references: [id])
+  authorId String
+
+  assignedTo   User?   @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedToId String?
+
+  peerReviews      PeerReview[]
+  timelineMessages TimelineMessage[]
+  auditLogs        AuditLog[]
+  attachments      FindingAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, status])
+  @@index([projectId, severity])
+  @@index([authorId])
+  @@index([assignedToId])
+}
+
+model PeerReview {
+  id         String   @id @default(uuid())
+  finding    Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  findingId  String
+  reviewer   User     @relation(fields: [reviewerId], references: [id])
+  reviewerId String
+  approved   Boolean
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  @@unique([findingId, reviewerId])
+  @@index([findingId])
+}
+
+model TimelineMessage {
+  id           String   @id @default(uuid())
+  finding      Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  findingId    String
+  author       User     @relation(fields: [authorUserId], references: [id])
+  authorUserId String
+  content      String
+  createdAt    DateTime @default(now())
+
+  @@index([findingId])
+}
+
+model FindingAttachment {
+  id           String   @id @default(uuid())
+  finding      Finding  @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  findingId    String
+  originalName String
+  mimeType     String
+  size         Int
+  storagePath  String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@index([findingId])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  finding       Finding? @relation(fields: [findingId], references: [id])
+  findingId     String?
+  user          User     @relation(fields: [userId], references: [id])
+  userId        String
+  action        String
+  previousValue String?
+  newValue      String?
+  createdAt     DateTime @default(now())
+
+  @@index([findingId])
+}
